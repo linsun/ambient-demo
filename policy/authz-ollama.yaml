@@ -1,0 +1,21 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: external-ollama
+  namespace: istio-egress
+spec:
+  targetRefs:
+  - kind: ServiceEntry
+    group: networking.istio.io
+    name: external-ollama
+  action: ALLOW
+  rules:
+  # only principals within the default namespace can access it
+  - from:
+    - source:
+        principals: ["cluster.local/ns/default/sa/demo", "cluster.local/ns/default/sa/rag"]
+  # Everything else is only allowed to access /GET
+  - to:
+    - operation:
+        methods: ["GET"]
+        paths: ["/"]

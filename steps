@@ -1,0 +1,34 @@
+kubectl label ns default istio.io/dataplane-mode=ambient
+istioctl waypoint apply --enroll-namespace --namespace default --overwrite
+
+kubectl apply -f policy/ingress-gateway.yaml
+kubectl apply -f policy/demo-route.yaml
+# istioctl waypoint apply --enroll-namespace --namespace default --overwrite
+
+kubectl create ns istio-egress
+kubectl label ns istio-egress istio.io/dataplane-mode=ambient
+istioctl waypoint apply --enroll-namespace --namespace istio-egress --overwrite
+kubectl apply -f policy/se-ollama.yaml
+
+# access demo UI
+kubectl port-forward svc/ingress-gateway-istio -n istio-system 8088:80
+
+
+k exec -it deploy/client -- curl -X POST http://rag:80/upload -H "Content-Type: multipart/form-data" -F "file=@ambient.txt;type=text/plain" -H "x-rollout-canary:true"
+
+
+for i in {1..500}
+do
+  k exec -it deploy/client -- curl -X POST http://rag:80/query -H "Content-Type: application/json" -d '{"question": "What is the content of the document in 20 words?"}' -H "x-rollout-canary:true"
+  sleep 2
+done
+
+# Apply authz policy
+k apply -f policy/authz-ollama.yaml
+
+kubectl exec -it deploy/client -- curl http://host.docker.internal:11434/api/chat -d '{"model": "deepseek-r1:1.5b", "messages": [{"role": "user", "content": "what are top 2 things to doin London?"}], "stream": false}'
+
+kubectl exec -it deploy/client -- curl http://host.docker.internal:11434/api/tags
+kubectl exec -it deploy/client -- curl http://host.docker.internal:11434/
+
+#iterm2 The shortcuts cmd-d and cmd-shift-d divide an existing session vertically or horizontally, respectively.
